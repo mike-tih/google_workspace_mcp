@@ -37,9 +37,4 @@ ENV TOOL_TIER="core"
 ENV TOOLS="calendar gmail"
 
 # Use entrypoint for the base command and CMD for args
-ENTRYPOINT ["/bin/sh", "-c"]
-CMD uv run main.py \
-    --transport streamable-http \
-    --port ${PORT} \
-    ${TOOL_TIER:+--tool-tier "$TOOL_TIER"} \
-    ${TOOLS:+--tools $TOOLS}
+CMD ["sh", "-c", "uv run main.py --transport streamable-http ${TOOL_TIER:+--tool-tier \"$TOOL_TIER\"} ${TOOLS:+--tools $TOOLS}"]
