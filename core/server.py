@@ -108,10 +108,12 @@ def configure_server_for_http():
                     redirect_path=config.redirect_path,
                     required_scopes=required_scopes,
                 )
-                # Disable protocol-level auth, expect bearer tokens in tool calls
-                server.auth = None
-                logger.info("OAuth 2.1 enabled with EXTERNAL provider mode - protocol-level auth disabled")
+                # Assign provider to server.auth for token validation and session management
+                # FastMCP will use this to validate bearer tokens and create sessions
+                server.auth = provider
+                logger.info("OAuth 2.1 enabled with EXTERNAL provider mode")
                 logger.info("Expecting Authorization bearer tokens in tool call headers")
+                logger.info("Protocol-level OAuth flow disabled - tokens validated per request")
             else:
                 # Standard OAuth 2.1 mode: use FastMCP's GoogleProvider
                 provider = GoogleProvider(

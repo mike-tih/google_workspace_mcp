@@ -5,6 +5,7 @@ Extends FastMCP's GoogleProvider to support external OAuth flows where
 access tokens (ya29.*) are issued by external systems and need validation.
 """
 import logging
+import time
 from typing import Optional
 
 from fastmcp.server.auth.providers.google import GoogleProvider
@@ -61,21 +62,28 @@ class ExternalOAuthProvider(GoogleProvider):
                 user_info = get_user_info(credentials)
 
                 if user_info and user_info.get("email"):
-                    # Token is valid - create AccessToken object
+                    # Token is valid - create proper AccessToken object for FastMCP
                     logger.info(f"Validated external access token for: {user_info['email']}")
 
-                    # Create a mock AccessToken that the middleware expects
-                    # This matches the structure that FastMCP's AccessToken would have
-                    from types import SimpleNamespace
-                    access_token = SimpleNamespace(
+                    # Create a proper AccessToken object that FastMCP can use for session management
+                    # Default expiry: 1 hour from now (standard for Google access tokens)
+                    expires_at = int(time.time()) + 3600
+
+                    user_email = user_info["email"]
+                    user_sub = user_info.get("id", user_email)
+
+                    access_token = AccessToken(
                         token=token,
-                        scopes=[],  # Scopes not available from access token
-                        expires_at=None,  # Expiry not available
-                        claims={"email": user_info["email"], "sub": user_info.get("id")},
-                        client_id=self._client_id,
-                        email=user_info["email"],
-                        sub=user_info.get("id")
+                        scopes=[],  # Scopes not available from ya29.* access tokens
+                        expires_at=expires_at,
+                        claims={"email": user_email, "sub": user_sub},
                     )
+
+                    # Set additional attributes for compatibility with middleware
+                    access_token.email = user_email
+                    access_token.sub = user_sub
+                    access_token.client_id = self._client_id
+
                     return access_token
                 else:
                     logger.error("Could not get user info from access token")
