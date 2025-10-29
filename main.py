@@ -129,7 +129,6 @@ def main():
         safe_print(f"   - {key}: {value}")
     safe_print("")
 
-
     # Import tool modules to register them with the MCP server via decorators
     tool_imports = {
         'gmail': lambda: import_module('gmail.gmail_tools'),
