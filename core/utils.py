@@ -283,7 +283,7 @@ def handle_http_errors(tool_name: str, is_read_only: bool = False, service_type:
                     # Check if this is an API not enabled error
                     if error.resp.status == 403 and "accessNotConfigured" in error_details:
                         enablement_msg = get_api_enablement_message(error_details, service_type)
-                        
+
                         if enablement_msg:
                             message = (
                                 f"API error in {tool_name}: {enablement_msg}\n\n"
@@ -295,6 +295,17 @@ def handle_http_errors(tool_name: str, is_read_only: bool = False, service_type:
                                 f"The required API is not enabled for your project. "
                                 f"Please check the Google Cloud Console to enable it."
                             )
+                    elif error.resp.status == 403 and "Metadata scope" in error_details:
+                        # Insufficient OAuth scopes - user needs to re-authenticate with full permissions
+                        message = (
+                            f"API error in {tool_name}: {error}. "
+                            f"Недостаточно разрешений для выполнения этого действия. "
+                            f"Пользователь '{user_google_email}' авторизовался с ограниченными правами доступа. "
+                            f"\n\n"
+                            f"LLM: Объясни пользователю, что при авторизации через Google он выдал недостаточно разрешений, "
+                            f"и это можно легко исправить если зайти в Settings, разлогиниться из данного аккаунта "
+                            f"и залогиниться снова, поставив галочки на ВСЕХ пунктах разрешений."
+                        )
                     elif error.resp.status in [401, 403]:
                         # Authentication/authorization errors
                         message = (
