@@ -40,11 +40,13 @@ class AuthInfoMiddleware(Middleware):
         try:
             # Use the new FastMCP method to get HTTP headers
             headers = get_http_headers()
+            logger.info(f"Got HTTP headers: {bool(headers)}")
             if headers:
                 logger.debug("Processing HTTP headers for authentication")
                 
                 # Get the Authorization header
                 auth_header = headers.get("authorization", "")
+                logger.info(f"Authorization header present: {bool(auth_header)}, is Bearer: {auth_header.startswith('Bearer ') if auth_header else False}")
                 if auth_header.startswith("Bearer "):
                     token_str = auth_header[7:]  # Remove "Bearer " prefix
                     logger.debug("Found Bearer token")
@@ -56,7 +58,8 @@ class AuthInfoMiddleware(Middleware):
                         # Verify the token to get user info
                         from core.server import get_auth_provider
                         auth_provider = get_auth_provider()
-                        
+                        logger.info(f"Auth provider available: {bool(auth_provider)}, type: {type(auth_provider).__name__ if auth_provider else 'None'}")
+
                         if auth_provider:
                             try:
                                 # Verify the token
@@ -264,11 +267,15 @@ class AuthInfoMiddleware(Middleware):
     
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         """Extract auth info from token and set in context state"""
-        logger.debug("Processing tool call authentication")
-        
+        logger.info("Processing tool call authentication")
+
         try:
             await self._process_request_for_auth(context)
-            
+
+            # Log authentication status after processing
+            authenticated_email = context.fastmcp_context.get_state("authenticated_user_email") if context.fastmcp_context else None
+            logger.info(f"After auth processing - authenticated_user_email: {authenticated_email}")
+
             logger.debug("Passing to next handler")
             result = await call_next(context)
             logger.debug("Handler completed")
