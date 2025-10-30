@@ -21,6 +21,9 @@ class ExternalOAuthProvider(GoogleProvider):
 
     This provider handles ya29.* access tokens by calling Google's userinfo API,
     while maintaining compatibility with standard JWT ID tokens.
+
+    IMPORTANT: This provider DISABLES protocol-level authentication for initialize/tools/list.
+    Authentication is only required for actual tool calls (tools/call).
     """
 
     def __init__(self, client_id: str, client_secret: str, **kwargs):

@@ -108,12 +108,17 @@ def configure_server_for_http():
                     redirect_path=config.redirect_path,
                     required_scopes=required_scopes,
                 )
-                # Assign provider to server.auth for token validation and session management
-                # FastMCP will use this to validate bearer tokens and create sessions
-                server.auth = provider
+                # Disable protocol-level auth - allow unauthenticated initialize/tools/list
+                # Token validation will happen at tool call level via AuthInfoMiddleware
+                server.auth = None
+
+                # Store provider for middleware to use (even though server.auth is None)
+                set_auth_provider(provider)
+                _auth_provider = provider
+
                 logger.info("OAuth 2.1 enabled with EXTERNAL provider mode")
-                logger.info("Expecting Authorization bearer tokens in tool call headers")
-                logger.info("Protocol-level OAuth flow disabled - tokens validated per request")
+                logger.info("Protocol-level auth disabled - initialize/tools/list are public")
+                logger.info("Bearer tokens required only for tools/call, validated per request")
             else:
                 # Standard OAuth 2.1 mode: use FastMCP's GoogleProvider
                 provider = GoogleProvider(
@@ -125,11 +130,12 @@ def configure_server_for_http():
                 )
                 # Enable protocol-level auth
                 server.auth = provider
-                logger.info("OAuth 2.1 enabled using FastMCP GoogleProvider with protocol-level auth")
 
-            # Always set auth provider for token validation in middleware
-            set_auth_provider(provider)
-            _auth_provider = provider
+                # Store provider for middleware to use
+                set_auth_provider(provider)
+                _auth_provider = provider
+
+                logger.info("OAuth 2.1 enabled using FastMCP GoogleProvider with protocol-level auth")
         except Exception as exc:
             logger.error("Failed to initialize FastMCP GoogleProvider: %s", exc, exc_info=True)
             raise

@@ -745,7 +745,10 @@ def get_user_info(credentials: Credentials) -> Optional[Dict[str, Any]]:
     # For external OAuth (ya29.* access tokens), credentials.valid may be False
     # because there's no refresh_token. We should still try to fetch user info.
     # The API call itself will fail if the token is actually invalid.
-    is_external_token = credentials.token and credentials.token.startswith("ya29.")
+
+    # Check if this is an external OAuth access token (ya29.* format)
+    # credentials is guaranteed to be not None here (checked above)
+    is_external_token = bool(credentials.token and credentials.token.startswith("ya29."))
 
     if not credentials.valid and not is_external_token:
         # Only reject invalid credentials for non-ya29 tokens
