@@ -695,13 +695,14 @@ def ensure_session_from_access_token(
                 expiry = None
 
         normalized_expiry = _normalize_expiry_to_naive_utc(expiry)
+        token_scopes = getattr(access_token, "scopes", None)
         credentials = Credentials(
             token=access_token.token,
             refresh_token=None,
             token_uri="https://oauth2.googleapis.com/token",
             client_id=client_id,
             client_secret=client_secret,
-            scopes=getattr(access_token, "scopes", None),
+            scopes=token_scopes,
             expiry=normalized_expiry,
         )
         store_expiry = expiry
