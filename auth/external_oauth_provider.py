@@ -71,6 +71,8 @@ class ExternalOAuthProvider(GoogleProvider):
                     user_email = user_info["email"]
                     user_sub = user_info.get("id", user_email)
 
+                    # AccessToken is a Pydantic model - all data must be in constructor or claims
+                    # Middleware extracts email from claims.get("email") and sub from claims.get("sub")
                     access_token = AccessToken(
                         token=token,
                         client_id=self._client_id,  # Required by FastMCP's AccessToken
@@ -78,10 +80,6 @@ class ExternalOAuthProvider(GoogleProvider):
                         expires_at=expires_at,
                         claims={"email": user_email, "sub": user_sub},
                     )
-
-                    # Set additional attributes for compatibility with middleware
-                    access_token.email = user_email
-                    access_token.sub = user_sub
 
                     return access_token
                 else:
