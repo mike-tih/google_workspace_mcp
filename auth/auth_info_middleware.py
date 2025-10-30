@@ -42,7 +42,7 @@ class AuthInfoMiddleware(Middleware):
             headers = get_http_headers()
             if headers:
                 logger.debug("Processing HTTP headers for authentication")
-                
+
                 # Get the Authorization header
                 auth_header = headers.get("authorization", "")
                 if auth_header.startswith("Bearer "):
@@ -56,7 +56,7 @@ class AuthInfoMiddleware(Middleware):
                         # Verify the token to get user info
                         from core.server import get_auth_provider
                         auth_provider = get_auth_provider()
-                        
+
                         if auth_provider:
                             try:
                                 # Verify the token
@@ -265,10 +265,10 @@ class AuthInfoMiddleware(Middleware):
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         """Extract auth info from token and set in context state"""
         logger.debug("Processing tool call authentication")
-        
+
         try:
             await self._process_request_for_auth(context)
-            
+
             logger.debug("Passing to next handler")
             result = await call_next(context)
             logger.debug("Handler completed")

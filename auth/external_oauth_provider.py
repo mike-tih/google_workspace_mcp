@@ -5,6 +5,7 @@ Extends FastMCP's GoogleProvider to support external OAuth flows where
 access tokens (ya29.*) are issued by external systems and need validation.
 """
 import logging
+import time
 from typing import Optional
 
 from fastmcp.server.auth.providers.google import GoogleProvider
@@ -20,6 +21,9 @@ class ExternalOAuthProvider(GoogleProvider):
 
     This provider handles ya29.* access tokens by calling Google's userinfo API,
     while maintaining compatibility with standard JWT ID tokens.
+
+    IMPORTANT: This provider DISABLES protocol-level authentication for initialize/tools/list.
+    Authentication is only required for actual tool calls (tools/call).
     """
 
     def __init__(self, client_id: str, client_secret: str, **kwargs):
@@ -49,33 +53,34 @@ class ExternalOAuthProvider(GoogleProvider):
             try:
                 from auth.google_auth import get_user_info
 
-                # Create minimal Credentials object for userinfo API call
-                credentials = Credentials(
-                    token=token,
-                    token_uri="https://oauth2.googleapis.com/token",
-                    client_id=self._client_id,
-                    client_secret=self._client_secret
-                )
+                # Create minimal Credentials object ONLY with token
+                # Don't pass token_uri, client_id, client_secret - this prevents refresh attempts
+                credentials = Credentials(token=token)
 
                 # Validate token by calling userinfo API
                 user_info = get_user_info(credentials)
 
                 if user_info and user_info.get("email"):
-                    # Token is valid - create AccessToken object
+                    # Token is valid - create proper AccessToken object for FastMCP
                     logger.info(f"Validated external access token for: {user_info['email']}")
 
-                    # Create a mock AccessToken that the middleware expects
-                    # This matches the structure that FastMCP's AccessToken would have
-                    from types import SimpleNamespace
-                    access_token = SimpleNamespace(
+                    # Create a proper AccessToken object that FastMCP can use for session management
+                    # Default expiry: 1 hour from now (standard for Google access tokens)
+                    expires_at = int(time.time()) + 3600
+
+                    user_email = user_info["email"]
+                    user_sub = user_info.get("id", user_email)
+
+                    # AccessToken is a Pydantic model - all data must be in constructor or claims
+                    # Middleware extracts email from claims.get("email") and sub from claims.get("sub")
+                    access_token = AccessToken(
                         token=token,
-                        scopes=[],  # Scopes not available from access token
-                        expires_at=None,  # Expiry not available
-                        claims={"email": user_info["email"], "sub": user_info.get("id")},
-                        client_id=self._client_id,
-                        email=user_info["email"],
-                        sub=user_info.get("id")
+                        client_id=self._client_id,  # Required by FastMCP's AccessToken
+                        scopes=[],  # Scopes not available from ya29.* access tokens
+                        expires_at=expires_at,
+                        claims={"email": user_email, "sub": user_sub},
                     )
+
                     return access_token
                 else:
                     logger.error("Could not get user info from access token")

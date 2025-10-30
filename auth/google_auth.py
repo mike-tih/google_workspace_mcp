@@ -738,16 +738,51 @@ def get_credentials(
 
 def get_user_info(credentials: Credentials) -> Optional[Dict[str, Any]]:
     """Fetches basic user profile information (requires userinfo.email scope)."""
-    if not credentials or not credentials.valid:
-        logger.error("Cannot get user info: Invalid or missing credentials.")
+    if not credentials:
+        logger.error("Cannot get user info: Missing credentials.")
         return None
+
+    # For external OAuth (ya29.* access tokens), credentials.valid may be False
+    # because there's no refresh_token. We should still try to fetch user info.
+    # The API call itself will fail if the token is actually invalid.
+
+    # Check if this is an external OAuth access token (ya29.* format)
+    # credentials is guaranteed to be not None here (checked above)
+    is_external_token = bool(credentials.token and credentials.token.startswith("ya29."))
+
+    if not credentials.valid and not is_external_token:
+        # Only reject invalid credentials for non-ya29 tokens
+        logger.error("Cannot get user info: Invalid credentials.")
+        return None
+
     try:
-        # Using googleapiclient discovery to get user info
-        # Requires 'google-api-python-client' library
+        # For external ya29.* tokens, use direct HTTP call to avoid Credentials property issues
+        # These tokens are created with minimal Credentials(token=token) which doesn't support
+        # property modifications for refresh_token/token_uri
+        if is_external_token:
+            import requests
+            logger.debug("Using direct HTTP call for ya29.* token validation")
+
+            response = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {credentials.token}"},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                user_info = response.json()
+                logger.info(f"Successfully fetched user info via direct HTTP: {user_info.get('email')}")
+                return user_info
+            else:
+                logger.error(f"HTTP error fetching user info: {response.status_code}")
+                return None
+
+        # For standard OAuth tokens with refresh capability, use google-api-python-client
         service = build("oauth2", "v2", credentials=credentials)
         user_info = service.userinfo().get().execute()
         logger.info(f"Successfully fetched user info: {user_info.get('email')}")
         return user_info
+
     except HttpError as e:
         logger.error(f"HttpError fetching user info: {e.status_code} {e.reason}")
         # Handle specific errors, e.g., 401 Unauthorized might mean token issue
