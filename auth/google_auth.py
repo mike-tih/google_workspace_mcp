@@ -756,27 +756,32 @@ def get_user_info(credentials: Credentials) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        # For external tokens, disable automatic refresh since they don't have refresh_token
-        # This prevents the "credentials do not contain necessary fields" error
+        # For external ya29.* tokens, use direct HTTP call to avoid Credentials property issues
+        # These tokens are created with minimal Credentials(token=token) which doesn't support
+        # property modifications for refresh_token/token_uri
         if is_external_token:
-            # Temporarily disable refresh capability to prevent auto-refresh on 401
-            original_refresh_token = credentials.refresh_token
-            original_token_uri = credentials.token_uri
-            credentials.refresh_token = None
-            credentials.token_uri = None
+            import requests
+            logger.debug("Using direct HTTP call for ya29.* token validation")
 
-        try:
-            # Using googleapiclient discovery to get user info
-            # Requires 'google-api-python-client' library
-            service = build("oauth2", "v2", credentials=credentials)
-            user_info = service.userinfo().get().execute()
-            logger.info(f"Successfully fetched user info: {user_info.get('email')}")
-            return user_info
-        finally:
-            # Restore original values if we modified them
-            if is_external_token:
-                credentials.refresh_token = original_refresh_token
-                credentials.token_uri = original_token_uri
+            response = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {credentials.token}"},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                user_info = response.json()
+                logger.info(f"Successfully fetched user info via direct HTTP: {user_info.get('email')}")
+                return user_info
+            else:
+                logger.error(f"HTTP error fetching user info: {response.status_code}")
+                return None
+
+        # For standard OAuth tokens with refresh capability, use google-api-python-client
+        service = build("oauth2", "v2", credentials=credentials)
+        user_info = service.userinfo().get().execute()
+        logger.info(f"Successfully fetched user info: {user_info.get('email')}")
+        return user_info
 
     except HttpError as e:
         logger.error(f"HttpError fetching user info: {e.status_code} {e.reason}")
