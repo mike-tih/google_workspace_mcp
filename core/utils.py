@@ -299,12 +299,12 @@ def handle_http_errors(tool_name: str, is_read_only: bool = False, service_type:
                         # Insufficient OAuth scopes - user needs to re-authenticate with full permissions
                         message = (
                             f"API error in {tool_name}: {error}. "
-                            f"Недостаточно разрешений для выполнения этого действия. "
-                            f"Пользователь '{user_google_email}' авторизовался с ограниченными правами доступа. "
+                            f"Insufficient permissions to perform this action. "
+                            f"User '{user_google_email}' authorized with limited access scope. "
                             f"\n\n"
-                            f"LLM: Объясни пользователю, что при авторизации через Google он выдал недостаточно разрешений, "
-                            f"и это можно легко исправить если зайти в Settings, разлогиниться из данного аккаунта "
-                            f"и залогиниться снова, поставив галочки на ВСЕХ пунктах разрешений."
+                            f"LLM: Explain to the user that they didn't grant enough permissions during Google authorization. "
+                            f"This can be easily fixed by going to Settings, logging out from this account, "
+                            f"and logging in again while checking ALL permission boxes."
                         )
                     elif error.resp.status in [401, 403]:
                         # Authentication/authorization errors
