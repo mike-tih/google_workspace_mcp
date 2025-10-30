@@ -53,13 +53,9 @@ class ExternalOAuthProvider(GoogleProvider):
             try:
                 from auth.google_auth import get_user_info
 
-                # Create minimal Credentials object for userinfo API call
-                credentials = Credentials(
-                    token=token,
-                    token_uri="https://oauth2.googleapis.com/token",
-                    client_id=self._client_id,
-                    client_secret=self._client_secret
-                )
+                # Create minimal Credentials object ONLY with token
+                # Don't pass token_uri, client_id, client_secret - this prevents refresh attempts
+                credentials = Credentials(token=token)
 
                 # Validate token by calling userinfo API
                 user_info = get_user_info(credentials)
