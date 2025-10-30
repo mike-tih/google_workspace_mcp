@@ -280,11 +280,6 @@ def handle_http_errors(tool_name: str, is_read_only: bool = False, service_type:
                     user_google_email = kwargs.get("user_google_email", "N/A")
                     error_details = str(error)
 
-                    # Log full error details for debugging
-                    logger.error(f"HttpError details - Status: {error.resp.status}, Reason: {error.resp.get('reason', 'unknown')}")
-                    logger.error(f"HttpError content: {error.content if hasattr(error, 'content') else 'N/A'}")
-                    logger.error(f"HttpError error_details: {error.error_details if hasattr(error, 'error_details') else 'N/A'}")
-
                     # Check if this is an API not enabled error
                     if error.resp.status == 403 and "accessNotConfigured" in error_details:
                         enablement_msg = get_api_enablement_message(error_details, service_type)

@@ -655,7 +655,6 @@ def _build_credentials_from_provider(access_token: AccessToken) -> Optional[Cred
             expiry = None
 
     scopes = getattr(access_entry, "scopes", None)
-    logger.info(f"Building Credentials from provider with scopes: {scopes}")
 
     return Credentials(
         token=access_token.token,
@@ -697,7 +696,6 @@ def ensure_session_from_access_token(
 
         normalized_expiry = _normalize_expiry_to_naive_utc(expiry)
         token_scopes = getattr(access_token, "scopes", None)
-        logger.info(f"Creating Credentials with scopes from AccessToken: {token_scopes}")
         credentials = Credentials(
             token=access_token.token,
             refresh_token=None,
