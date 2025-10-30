@@ -16,6 +16,7 @@ from auth.mcp_session_middleware import MCPSessionMiddleware
 from auth.oauth_responses import create_error_response, create_success_response, create_server_error_response
 from auth.auth_info_middleware import AuthInfoMiddleware
 from auth.scopes import SCOPES, get_current_scopes # noqa
+from auth.oauth_config import get_oauth_config
 from core.config import (
     USER_GOOGLE_EMAIL,
     get_transport_mode,
@@ -96,34 +97,17 @@ def configure_server_for_http():
         try:
             required_scopes: List[str] = sorted(get_current_scopes())
 
-            # Check if external OAuth provider is configured
-            if config.is_external_oauth21_provider():
-                # External OAuth mode: use custom provider that handles ya29.* access tokens
-                from auth.external_oauth_provider import ExternalOAuthProvider
-
-                provider = ExternalOAuthProvider(
-                    client_id=config.client_id,
-                    client_secret=config.client_secret,
-                    base_url=config.get_oauth_base_url(),
-                    redirect_path=config.redirect_path,
-                    required_scopes=required_scopes,
-                )
-                # Disable protocol-level auth, expect bearer tokens in tool calls
-                server.auth = None
-                logger.info("OAuth 2.1 enabled with EXTERNAL provider mode - protocol-level auth disabled")
-                logger.info("Expecting Authorization bearer tokens in tool call headers")
-            else:
-                # Standard OAuth 2.1 mode: use FastMCP's GoogleProvider
-                provider = GoogleProvider(
-                    client_id=config.client_id,
-                    client_secret=config.client_secret,
-                    base_url=config.get_oauth_base_url(),
-                    redirect_path=config.redirect_path,
-                    required_scopes=required_scopes,
-                )
-                # Enable protocol-level auth
-                server.auth = provider
-                logger.info("OAuth 2.1 enabled using FastMCP GoogleProvider with protocol-level auth")
+            # Standard OAuth 2.1 mode: use FastMCP's GoogleProvider
+            provider = GoogleProvider(
+                client_id=config.client_id,
+                client_secret=config.client_secret,
+                base_url=config.get_oauth_base_url(),
+                redirect_path=config.redirect_path,
+                required_scopes=required_scopes,
+            )
+            # Enable protocol-level auth
+            server.auth = provider
+            logger.info("OAuth 2.1 enabled using FastMCP GoogleProvider with protocol-level auth")
 
             # Always set auth provider for token validation in middleware
             set_auth_provider(provider)
@@ -214,6 +198,88 @@ async def legacy_oauth2_callback(request: Request) -> HTMLResponse:
     except Exception as e:
         logger.error(f"Error processing OAuth callback: {str(e)}", exc_info=True)
         return create_server_error_response(str(e))
+
+@server.tool()
+async def register_google_credentials(
+    refresh_token: str,
+    user_email: str,
+    access_token: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+) -> str:
+    """
+    Register Google OAuth credentials from an external authorization service.
+
+    This tool should be called by your external authorization service immediately after
+    MCP session initialization. It stores the refresh token and creates a session binding.
+
+    Args:
+        refresh_token: Google OAuth refresh token
+        user_email: User's Google email address
+        access_token: Optional current access token (if not provided, will be obtained via refresh)
+        client_id: Optional OAuth client ID (uses server config if not provided)
+        client_secret: Optional OAuth client secret (uses server config if not provided)
+
+    Returns:
+        Success message with session ID
+    """
+    try:
+        from fastmcp.server.dependencies import get_context
+        from auth.scopes import get_current_scopes
+        from datetime import datetime, timezone, timedelta
+
+        # Get MCP session ID from context
+        ctx = get_context()
+        mcp_session_id = ctx.session_id if ctx and hasattr(ctx, 'session_id') else None
+
+        if not mcp_session_id:
+            return "**Error:** Could not determine MCP session ID. This tool must be called within an active MCP session."
+
+        # Get OAuth configuration
+        config = get_oauth_config()
+        client_id = client_id or config.client_id
+        client_secret = client_secret or config.client_secret
+
+        if not client_id or not client_secret:
+            return "**Error:** OAuth client credentials not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET."
+
+        # Store credentials in session store
+        store = get_oauth21_session_store()
+
+        # If no access token provided, we'll let Google SDK obtain it via refresh token
+        # Set expiry to None so it will be refreshed on first use
+        expiry = None
+        if access_token:
+            # If access token provided, assume it's valid for 1 hour
+            expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        store.store_session(
+            user_email=user_email,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=get_current_scopes(),
+            expiry=expiry,
+            session_id=f"external_{user_email}",
+            mcp_session_id=mcp_session_id,
+            issuer="https://accounts.google.com",
+        )
+
+        logger.info(f"Registered external credentials for {user_email} with MCP session {mcp_session_id}")
+
+        return (
+            f"**Success!** Google credentials registered for {user_email}\n\n"
+            f"Session ID: `{mcp_session_id}`\n\n"
+            f"You can now use all Google Workspace tools. The session will automatically "
+            f"refresh access tokens using the provided refresh token."
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to register external credentials: {e}", exc_info=True)
+        return f"**Error:** Failed to register credentials: {str(e)}"
+
 
 @server.tool()
 async def start_google_auth(service_name: str, user_google_email: str = USER_GOOGLE_EMAIL) -> str:
