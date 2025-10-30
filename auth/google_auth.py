@@ -738,9 +738,18 @@ def get_credentials(
 
 def get_user_info(credentials: Credentials) -> Optional[Dict[str, Any]]:
     """Fetches basic user profile information (requires userinfo.email scope)."""
-    if not credentials or not credentials.valid:
-        logger.error("Cannot get user info: Invalid or missing credentials.")
+    if not credentials:
+        logger.error("Cannot get user info: Missing credentials.")
         return None
+
+    # For external OAuth (ya29.* access tokens), credentials.valid may be False
+    # because there's no refresh_token. We should still try to fetch user info.
+    # The API call itself will fail if the token is actually invalid.
+    if not credentials.valid and credentials.token and not credentials.token.startswith("ya29."):
+        # Only check validity for non-ya29 tokens
+        logger.error("Cannot get user info: Invalid credentials.")
+        return None
+
     try:
         # Using googleapiclient discovery to get user info
         # Requires 'google-api-python-client' library
