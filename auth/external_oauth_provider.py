@@ -52,13 +52,31 @@ class ExternalOAuthProvider(GoogleProvider):
 
             try:
                 from auth.google_auth import get_user_info
+                import requests
 
                 # Create minimal Credentials object ONLY with token
                 # Don't pass token_uri, client_id, client_secret - this prevents refresh attempts
                 credentials = Credentials(token=token)
 
-                # Validate token by calling userinfo API
+                # Validate token by calling userinfo API AND get token info for scopes
                 user_info = get_user_info(credentials)
+
+                # Get token info to check scopes
+                token_scopes = []
+                try:
+                    tokeninfo_response = requests.get(
+                        f"https://oauth2.googleapis.com/tokeninfo?access_token={token}",
+                        timeout=10
+                    )
+                    if tokeninfo_response.status_code == 200:
+                        token_info = tokeninfo_response.json()
+                        scope_string = token_info.get("scope", "")
+                        token_scopes = scope_string.split() if scope_string else []
+                        logger.info(f"External token has scopes: {token_scopes}")
+                    else:
+                        logger.warning(f"Could not get token info: {tokeninfo_response.status_code}")
+                except Exception as e:
+                    logger.warning(f"Failed to get token scopes: {e}")
 
                 if user_info and user_info.get("email"):
                     # Token is valid - create proper AccessToken object for FastMCP
@@ -76,7 +94,7 @@ class ExternalOAuthProvider(GoogleProvider):
                     access_token = AccessToken(
                         token=token,
                         client_id=self._client_id,  # Required by FastMCP's AccessToken
-                        scopes=[],  # Scopes not available from ya29.* access tokens
+                        scopes=token_scopes,  # Use actual scopes from tokeninfo
                         expires_at=expires_at,
                         claims={"email": user_email, "sub": user_sub},
                     )
