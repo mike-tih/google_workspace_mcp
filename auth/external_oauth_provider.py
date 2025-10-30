@@ -77,6 +77,7 @@ class ExternalOAuthProvider(GoogleProvider):
 
                     access_token = AccessToken(
                         token=token,
+                        client_id=self._client_id,  # Required by FastMCP's AccessToken
                         scopes=[],  # Scopes not available from ya29.* access tokens
                         expires_at=expires_at,
                         claims={"email": user_email, "sub": user_sub},
@@ -85,7 +86,6 @@ class ExternalOAuthProvider(GoogleProvider):
                     # Set additional attributes for compatibility with middleware
                     access_token.email = user_email
                     access_token.sub = user_sub
-                    access_token.client_id = self._client_id
 
                     return access_token
                 else:
